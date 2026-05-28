@@ -12,3 +12,7 @@ categories   = ["aerospace", "embedded", "hardware-support", "no-std"]
 [dependencies]
 accelerometer = "0.12"
 embedded-hal  = "1"
+defmt = { version = "1", optional = true }
+
+[features]
+defmt = ["dep:defmt"]

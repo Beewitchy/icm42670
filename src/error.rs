@@ -1,5 +1,6 @@
 /// Any type of error which may occur while interacting with the device
 #[derive(Debug)]
+#[cfg_attr(feature = "defmt", defmt::Format)]
 pub enum Error<E> {
     /// Some error originating from the communication bus
     BusError(E),
@@ -9,6 +10,7 @@ pub enum Error<E> {
 
 /// Any type of error specific to this device
 #[derive(Debug)]
+#[cfg_attr(feature = "defmt", defmt::Format)]
 pub enum SensorError {
     /// The chip at the specified address is not reporting the correct self
     /// identification code.

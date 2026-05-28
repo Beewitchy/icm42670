@@ -15,6 +15,7 @@ pub(crate) trait Bitfield {
 
 /// I²C slave addresses, determined by the logic level of pin `AP_AD0`
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", defmt::Format)]
 pub enum Address {
     /// `AP_AD0` pin == 0
     Primary   = 0b1101000,
@@ -25,6 +26,7 @@ pub enum Address {
 /// Configurable ranges of the Accelerometer
 ///
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", defmt::Format)]
 pub enum AccelRange {
     /// ±2G
     G2  = 3,
@@ -82,6 +84,7 @@ impl TryFrom<u8> for AccelRange {
 
 /// Configurable ranges of the Gyroscope
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", defmt::Format)]
 pub enum GyroRange {
     /// ±15.625 deg/sec
     Deg15_625 = 7,
@@ -150,6 +153,7 @@ impl TryFrom<u8> for GyroRange {
 
 /// Configurable power modes of the IMU
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", defmt::Format)]
 pub enum PowerMode {
     /// Gyroscope: OFF, Accelerometer: OFF
     #[default]
@@ -206,6 +210,7 @@ impl TryFrom<u8> for PowerMode {
 
 /// Accelerometer ODR selection values
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", defmt::Format)]
 pub enum AccelOdr {
     /// 8 kHz (LN mode)
     Hz8000   = 0b0011,
@@ -296,6 +301,7 @@ impl TryFrom<u8> for AccelOdr {
 
 /// Acceleration Low Power Averaging
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", defmt::Format)]
 pub enum AccLpAvg {
     #[default]
     X1  = 1,
@@ -314,6 +320,7 @@ impl Bitfield for AccLpAvg {
 
 /// Acceleration Digital Low Pass Filter options
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", defmt::Format)]
 pub enum AccelDlpfBw {
     Bypassed = 0b000,
     Hz180    = 0b001,
@@ -337,6 +344,7 @@ impl Bitfield for AccelDlpfBw {
 
 /// Temperature DLPF (Digital Low Pass Filter) Bandwidth
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", defmt::Format)]
 pub enum TempDlpfBw {
     Bypassed = 0b000,
     Hz180    = 0b001,
@@ -358,6 +366,7 @@ impl Bitfield for TempDlpfBw {
 
 /// Gyroscope UI low pass filter bandwidth
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", defmt::Format)]
 pub enum GyroLpFiltBw {
     Bypassed = 0b000,
     Hz180    = 0b001,
@@ -383,6 +392,7 @@ impl Bitfield for GyroLpFiltBw {
 ///  Hz, which is different to how these values are listed
 ///  in the datasheet.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", defmt::Format)]
 pub enum GyroOdr {
     /// 8 kHz
     Hz8000 = 0b0011,
@@ -460,6 +470,7 @@ impl TryFrom<u8> for GyroOdr {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", defmt::Format)]
 pub(crate) struct SoftReset;
 
 impl Bitfield for SoftReset {
@@ -474,6 +485,7 @@ impl Bitfield for SoftReset {
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", defmt::Format)]
 pub(crate) enum SpiWireCount {
     ThreeWire = 0b0,
     FourWire  = 0b1,
@@ -491,6 +503,7 @@ impl Bitfield for SpiWireCount {
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", defmt::Format)]
 pub(crate) enum SpiMode {
     Mode0And3 = 0b0,
     Mode1And2 = 0b1,
@@ -512,6 +525,7 @@ impl Bitfield for SpiMode {
 /// to SPI_SLEW_RATE.
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", defmt::Format)]
 pub(crate) enum I2CSlewRate {
     /// Min 20ns; Max 60ns
     M20M60 = 0b000,
@@ -546,6 +560,7 @@ impl Bitfield for I2CSlewRate {
 /// This register field should not be programmed in I3C/DDR mode.
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", defmt::Format)]
 pub(crate) enum SpiSlewRate {
     /// Min 20ns; Max 60ns
     M20M60 = 0b000,

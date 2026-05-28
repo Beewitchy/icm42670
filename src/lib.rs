@@ -1,15 +1,11 @@
-//! An [embedded-hal] driver for the ICM-42670 6-axis IMU from InvenSense.
+//! An [embedded-hal] driver for the ICM-40627 6-axis IMU from InvenSense.
 //!
-//! The ICM-42670 combines a 3-axis accelerometer with a 3-axis gyroscope into a
+//! The ICM-40627 combines a 3-axis accelerometer with a 3-axis gyroscope into a
 //! single package. It has a configurable host interface which supports I²C,
-//! SPI, and I3C communications. Presently this driver only supports using the
+//! and SPI communications. Presently this driver only supports using the
 //! I²C interface.
 //!
-//! For additional information about this device please refer to the
-//! [datasheet].
-//!
 //! [embedded-hal]: https://docs.rs/embedded-hal/latest/embedded_hal/
-//! [datasheet]: https://3cfeqx1hf82y3xcoull08ihx-wpengine.netdna-ssl.com/wp-content/uploads/2021/07/DS-000451-ICM-42670-P-v1.0.pdf
 
 #![no_std]
 
@@ -22,7 +18,7 @@ use accelerometer::{
     Accelerometer,
     RawAccelerometer,
 };
-use embedded_hal::{delay::DelayNs, i2c::I2c};
+use embedded_hal::{i2c::I2c};
 
 pub use crate::{
     config::{
@@ -42,69 +38,65 @@ pub use crate::{
 use crate::{
     config::{Bitfield, SoftReset},
     error::SensorError,
-    register::{Bank0, Register, RegisterBank},
+    register::{Bank0, Register},
 };
 
 mod config;
 mod error;
 mod register;
 
-/// Re-export any traits which may be required by end users
 pub mod prelude {
     pub use accelerometer::{
-        Accelerometer as _accelerometer_Accelerometer,
-        RawAccelerometer as _accelerometer_RawAccelerometer,
+        Accelerometer as _,
+        RawAccelerometer as _,
     };
 }
 
-/// ICM-42670 driver
+/// Device driver supporting ICM 42627 and 40627,
+///  which seem to have the same spec.
 #[derive(Debug, Clone, Copy)]
-pub struct Icm42670<I2C> {
+pub struct Icm42627<I2C> {
     /// Underlying I²C peripheral
     i2c: I2C,
     /// I²C slave address to use
     address: Address,
 }
 
-impl<I2C, E> Icm42670<I2C>
+impl<I2C, E> Icm42627<I2C>
 where
     I2C: I2c<Error = E>,
     E: Debug,
 {
-    /// Unique device identifiers for the ICM-42607 and ICM-42670
-    ///
-    /// The ICM-42607 is the mass-production version of the ICM-42670, and
-    /// differs only by part number and device ID.
-    pub const DEVICE_IDS: [u8; 2] = [
-        0x60, // ICM-42607
-        0x67, // ICM-42670
-    ];
+    /// WHO_AM_I values for 42627 and 40627
+    pub const DEVICE_IDS: [u8; 2] = [0x20, 0x4E];
 
     /// Instantiate a new instance of the driver and initialize the device
     pub fn new(i2c: I2C, address: Address) -> Result<Self, Error<E>> {
-        let mut me = Self { i2c, address };
+        let mut new = Self { i2c, address };
 
         // Verify that the device has the correct ID before continuing. If the ID does
         // not match either of the expected values then it is likely the wrong chip is
         // connected.
-        if !Self::DEVICE_IDS.contains(&me.device_id()?) {
+        if !Self::DEVICE_IDS.contains(&new.device_id()?) {
             return Err(Error::SensorError(SensorError::BadChip));
         }
 
         // Make sure that any configuration has been restored to the default values when
         // initializing the driver.
-        me.set_accel_range(AccelRange::default())?;
-        me.set_gyro_range(GyroRange::default())?;
+        new.set_accel_range(AccelRange::default())?;
+        new.set_gyro_range(GyroRange::default())?;
 
         // The IMU uses `PowerMode::Sleep` by default, which disables both the accel and
         // gyro, so we enable them both during driver initialization.
-        me.set_power_mode(PowerMode::SixAxisLowNoise)?;
+        new.set_power_mode(PowerMode::SixAxisLowNoise)?;
 
-        Ok(me)
+        new.write_reg(&Bank0::SELF_TEST_CONFIG, 0x07)?;
+
+        Ok(new)
     }
 
     /// Return the raw interface to the underlying `I2C` instance
-    pub fn free(self) -> I2C {
+    pub fn destroy(self) -> I2C {
         self.i2c
     }
 
@@ -115,7 +107,15 @@ where
 
     /// Perform a software-reset on the device
     pub fn soft_reset(&mut self) -> Result<(), Error<E>> {
-        self.update_reg(SoftReset::Enabled)
+        self.update_reg(SoftReset)
+    }
+
+    /// Enable the given self test config bits
+    ///
+    /// TODO: needs an actual config API
+    pub fn enable_self_test(&mut self, bits: u8) -> Result<(), Error<E>> {
+        self.write_reg(&Bank0::SELF_TEST_CONFIG, bits)?;
+        Ok(())
     }
 
     /// Return the normalized gyro data for each of the three axes
@@ -155,7 +155,7 @@ where
     }
 
     /// Read all of the raw sensor data (accelerometer, gyro, temperature) at once.
-    /// 
+    ///
     /// This is faster than reading the sensors individually
     pub fn measure_raw(&mut self) -> Result<(I16x3, I16x3, i16), Error<E>> {
         let mut bytes = [0u8; 6+6+2]; // Accel + gyro + temp
@@ -174,7 +174,7 @@ where
     }
 
     /// Read all of the normalized sensor data (accelerometer, gyro, temperature) at once.
-    /// 
+    ///
     /// This is faster than reading the sensors individually
     pub fn measure_norm(&mut self) -> Result<(F32x3, F32x3, f32), Error<E>> {
         let (acc_raw, gyro_raw, temp_raw) = self.measure_raw()?;
@@ -186,11 +186,11 @@ where
         let gyro_scale  =  GyroRange::try_from(conf_bytes[0] >> 5)?.scale_factor();
         let accel_scale = AccelRange::try_from(conf_bytes[1] >> 5)?.scale_factor();
 
-        let temp = (temp_raw as f32 / 128.0) + 25.0;
+        let temp = (temp_raw as f32 / 132.48) + 25.0;
         let accel_x = acc_raw.x as f32 / accel_scale;
         let accel_y = acc_raw.y as f32 / accel_scale;
         let accel_z = acc_raw.z as f32 / accel_scale;
-        
+
         let gyro_x = gyro_raw.x as f32 / gyro_scale;
         let gyro_y = gyro_raw.y as f32 / gyro_scale;
         let gyro_z = gyro_raw.z as f32 / gyro_scale;
@@ -298,69 +298,6 @@ where
         self.update_reg(odr)
     }
 
-    // -----------------------------------------------------------------------
-    // PRIVATE
-
-    // FIXME: 'Sleep mode' and 'accelerometer low power mode with WUOSC' do not
-    //        support MREG1, MREG2 or MREG3 access.
-    #[allow(unused)]
-    fn read_mreg(
-        &mut self,
-        delay: &mut dyn DelayNs,
-        bank: RegisterBank,
-        reg: &dyn Register,
-    ) -> Result<u8, Error<E>> {
-        // See "ACCESSING MREG1, MREG2 AND MREG3 REGISTERS" (page 40)
-
-        // Wait until the internal clock is running prior to writing.
-        while self.read_reg(&Bank0::MCLK_RDY)? != 0x1 {}
-
-        // Select the appropriate block and set the register address to read from.
-        self.write_reg(&Bank0::BLK_SEL_R, bank.blk_sel())?;
-        self.write_reg(&Bank0::MADDR_R, reg.addr())?;
-        delay.delay_us(10);
-
-        // Read a value from the register.
-        let result = self.read_reg(&Bank0::M_R)?;
-        delay.delay_us(10);
-
-        // Reset block selection registers.
-        self.write_reg(&Bank0::BLK_SEL_R, 0x00)?;
-        self.write_reg(&Bank0::BLK_SEL_W, 0x00)?;
-
-        Ok(result)
-    }
-
-    // FIXME: 'Sleep mode' and 'accelerometer low power mode with WUOSC' do not
-    //        support MREG1, MREG2 or MREG3 access.
-    #[allow(unused)]
-    fn write_mreg(
-        &mut self,
-        delay: &mut dyn DelayNs,
-        bank: RegisterBank,
-        reg: &dyn Register,
-        value: u8,
-    ) -> Result<(), Error<E>> {
-        // See "ACCESSING MREG1, MREG2 AND MREG3 REGISTERS" (page 40)
-
-        // Wait until the internal clock is running prior to writing.
-        while self.read_reg(&Bank0::MCLK_RDY)? != 0x1 {}
-
-        // Select the appropriate block and set the register address to write to.
-        self.write_reg(&Bank0::BLK_SEL_W, bank.blk_sel())?;
-        self.write_reg(&Bank0::MADDR_W, reg.addr())?;
-
-        // Write the value to the register.
-        self.write_reg(&Bank0::M_W, value)?;
-        delay.delay_us(10);
-
-        // Reset block selection registers.
-        self.write_reg(&Bank0::BLK_SEL_R, 0x00)?;
-        self.write_reg(&Bank0::BLK_SEL_W, 0x00)?;
-
-        Ok(())
-    }
-
     /// Read a register at the provided address.
     fn read_reg<R: Register>(&mut self, reg: &R) -> Result<u8, Error<E>> {
         let mut buffer = [0u8];
@@ -425,7 +362,7 @@ where
     }
 }
 
-impl<I2C, E> Accelerometer for Icm42670<I2C>
+impl<I2C, E> Accelerometer for Icm42627<I2C>
 where
     I2C: I2c<Error = E>,
     E: Debug,
@@ -454,7 +391,7 @@ where
     }
 }
 
-impl<I2C, E> RawAccelerometer<I16x3> for Icm42670<I2C>
+impl<I2C, E> RawAccelerometer<I16x3> for Icm42627<I2C>
 where
     I2C: I2c<Error = E>,
     E: Debug,

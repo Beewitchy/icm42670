@@ -1,12 +1,8 @@
-# icm42670
+# icm40627
 
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/jessebraham/icm42670/ci.yaml?label=CI&logo=github&style=flat-square)
-[![Crates.io](https://img.shields.io/crates/v/icm42670?color=C96329&logo=Rust&style=flat-square)](https://crates.io/crates/icm42670)
-[![docs.rs](https://img.shields.io/docsrs/icm42670?color=C96329&logo=rust&style=flat-square)](https://docs.rs/icm42670)
-![MSRV](https://img.shields.io/badge/MSRV-1.60-blue?style=flat-square)
-![Crates.io](https://img.shields.io/crates/l/icm42670?style=flat-square)
+An `embedded-hal` driver for the ICM-40627 6-axis IMU.
 
-An `embedded-hal` driver for the ICM-42670 6-axis IMU.
+Forked from [icm42670]: https://github.com/jessebraham/icm42670 to support this similar IMU instead.
 
 While this device supports communication via I²C, SPI, and I3C, presently only I²C is supported. In its current state we are able to read the accelerometer, gyroscope, and temperature sensor data and perform basic configuration of the device. Reading packets from the FIFO is not currently supported.
 
@@ -19,9 +15,6 @@ Examples demonstrating how to use this driver can be found in the [icm42670-exam
 [icm42670-examples]: https://github.com/jessebraham/icm42670-examples
 
 ## Resources
-
-- [ICM-42670 Product Page](https://invensense.tdk.com/products/motion-tracking/6-axis/icm-42670-P/)
-- [ICM-42670 Datasheet](https://3cfeqx1hf82y3xcoull08ihx-wpengine.netdna-ssl.com/wp-content/uploads/2021/07/DS-000451-ICM-42670-P-v1.0.pdf)
 
 ## License
 

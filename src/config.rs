@@ -1,6 +1,6 @@
 use crate::{
     error::SensorError,
-    register::{Bank0, Register},
+    register::{Bank0, Bank1, Register},
 };
 
 pub(crate) trait Bitfield {
@@ -17,13 +17,14 @@ pub(crate) trait Bitfield {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Address {
     /// `AP_AD0` pin == 0
-    Primary   = 0x68,
+    Primary   = 0b1101000,
     /// `AP_AD0` pin == 1
-    Secondary = 0x69,
+    Secondary = 0b1101001,
 }
 
 /// Configurable ranges of the Accelerometer
-#[derive(Clone, Copy, Debug, PartialEq)]
+///
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub enum AccelRange {
     /// ±2G
     G2  = 3,
@@ -32,15 +33,17 @@ pub enum AccelRange {
     /// ±8G
     G8  = 1,
     /// ±16G
+    #[default]
     G16 = 0,
 }
 
 impl AccelRange {
-    /// Sensitivity scale factor
+    /// Sensitivity scale factor, used to convert acceleration
+    /// register values to g based on the configured range
     pub fn scale_factor(&self) -> f32 {
         use AccelRange::*;
 
-        // Values taken from Table 2 of the data sheet
+        // Values taken from `Table 2. Accelerometer Specifications` of the data sheet
         match self {
             G2 => 16_384.0,
             G4 => 8_192.0,
@@ -51,19 +54,13 @@ impl AccelRange {
 }
 
 impl Bitfield for AccelRange {
-    const BITMASK: u8 = 0b0110_0000;
+    const BITMASK: u8 = 0b1110_0000;
     type Reg = Bank0;
     const REGISTER: Self::Reg = Self::Reg::ACCEL_CONFIG0;
 
     fn bits(self) -> u8 {
-        // `ACCEL_UI_FS_SEL` occupies bits 6:5 in the register
+        // `ACCEL_FS_SEL` occupies bits 7:5 in the register
         (self as u8) << 5
-    }
-}
-
-impl Default for AccelRange {
-    fn default() -> Self {
-        Self::G16
     }
 }
 
@@ -84,16 +81,25 @@ impl TryFrom<u8> for AccelRange {
 }
 
 /// Configurable ranges of the Gyroscope
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub enum GyroRange {
+    /// ±15.625 deg/sec
+    Deg15_625 = 7,
+    /// ±31.25 deg/sec
+    Deg31_25  = 6,
+    /// ±62.5 deg/sec
+    Deg62_5   = 5,
+    /// ±125 deg/sec
+    Deg125    = 4,
     /// ±250 deg/sec
-    Deg250  = 3,
+    Deg250    = 3,
     /// ±500 deg/sec
-    Deg500  = 2,
+    Deg500    = 2,
     /// ±1000 deg/sec
-    Deg1000 = 1,
+    Deg1000   = 1,
     /// ±2000 deg/sec
-    Deg2000 = 0,
+    #[default]
+    Deg2000   = 0,
 }
 
 impl GyroRange {
@@ -101,30 +107,28 @@ impl GyroRange {
     pub fn scale_factor(&self) -> f32 {
         use GyroRange::*;
 
-        // Values taken from Table 1 of the data sheet
+        // Values taken from `Table 1. Gyroscope Specifications` of the data sheet
         match self {
-            Deg250 => 131.0,
-            Deg500 => 65.5,
-            Deg1000 => 32.8,
-            Deg2000 => 16.4,
+            Deg15_625 => 15.625,
+            Deg31_25 => 31.25,
+            Deg62_5 => 62.5,
+            Deg125 => 125.0,
+            Deg250 => 250.0,
+            Deg500 => 500.0,
+            Deg1000 => 1000.0,
+            Deg2000 => 2000.0,
         }
     }
 }
 
 impl Bitfield for GyroRange {
-    const BITMASK: u8 = 0b0110_0000;
+    const BITMASK: u8 = 0b1110_0000;
     type Reg = Bank0;
     const REGISTER: Self::Reg = Self::Reg::GYRO_CONFIG0;
 
     fn bits(self) -> u8 {
-        // `GYRO_UI_FS_SEL` occupies bits 6:5 in the register
+        // `GYRO_FS_SEL` occupies bits 7:5 in the register
         (self as u8) << 5
-    }
-}
-
-impl Default for GyroRange {
-    fn default() -> Self {
-        Self::Deg2000
     }
 }
 
@@ -145,37 +149,38 @@ impl TryFrom<u8> for GyroRange {
 }
 
 /// Configurable power modes of the IMU
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub enum PowerMode {
     /// Gyroscope: OFF, Accelerometer: OFF
-    Sleep           = 0b0000,
+    #[default]
+    Sleep           = 0b0000_0000,
+    /// Sleep but with the RC oscillator powered on
+    Idle            = 0b0001_0000,
     /// Gyroscope: DRIVE ON, Accelerometer: OFF
-    Standby         = 0b0100,
+    Standby         = 0b0000_0100,
     /// Gyroscope: OFF, Accelerometer: DUTY-CYCLED
-    AccelLowPower   = 0b0010,
+    AccelLowPower   = 0b0000_0010,
     /// Gyroscope: OFF, Accelerometer: ON
-    AccelLowNoise   = 0b0011,
+    AccelLowNoise   = 0b0000_0011,
     /// Gyroscope: ON, Accelerometer: OFF
-    GyroLowNoise    = 0b1100,
+    GyroLowNoise    = 0b0000_1100,
     /// Gyroscope: ON, Accelerometer: ON
-    SixAxisLowNoise = 0b1111,
+    SixAxisLowNoise = 0b0000_1111,
+    /// Temperature: OFF, Gyroscope: ON, Accelerometer: ON
+    SixAxisLowNoiseWithoutTemperature = 0b0010_1111,
 }
 
 impl Bitfield for PowerMode {
-    const BITMASK: u8 = 0b0000_1111;
+    const BITMASK: u8 = 0b0011_1111;
     type Reg = Bank0;
     const REGISTER: Self::Reg = Self::Reg::PWR_MGMT0;
 
     fn bits(self) -> u8 {
+        // `TEMP_DIS` occupies bit 5 in the register
+        // `IDLE` occupies bit 4 in the register
         // `GYRO_MODE` occupies bits 3:2 in the register
         // `ACCEL_MODE` occupies bits 1:0 in the register
         self as u8
-    }
-}
-
-impl Default for PowerMode {
-    fn default() -> Self {
-        PowerMode::Sleep
     }
 }
 
@@ -186,42 +191,49 @@ impl TryFrom<u8> for PowerMode {
         use PowerMode::*;
 
         match value {
-            0b0000 => Ok(Sleep),
-            0b0100 => Ok(Standby),
-            0b0010 => Ok(AccelLowPower),
-            0b0011 => Ok(AccelLowNoise),
-            0b1100 => Ok(GyroLowNoise),
-            0b1111 => Ok(SixAxisLowNoise),
+            0b0000_0000 => Ok(Sleep),
+            0b0001_0000 => Ok(Idle),
+            0b0000_0100 => Ok(Standby),
+            0b0000_0010 => Ok(AccelLowPower),
+            0b0000_0011 => Ok(AccelLowNoise),
+            0b0000_1100 => Ok(GyroLowNoise),
+            0b0000_1111 => Ok(SixAxisLowNoise),
+            0b0010_1111 => Ok(SixAxisLowNoiseWithoutTemperature),
             _ => Err(SensorError::InvalidDiscriminant),
         }
     }
 }
 
 /// Accelerometer ODR selection values
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub enum AccelOdr {
-    /// 1.6 kHz (LN mode)
-    Hz1600   = 0b0101,
-    /// 800 Hz (LN mode
-    Hz800    = 0b0110,
-    /// 400 Hz (LP or LN mode)
-    Hz400    = 0b0111,
+    /// 8 kHz (LN mode)
+    Hz8000   = 0b0011,
+    /// 4 kHz (LN mode)
+    Hz4000   = 0b0100,
+    /// 2 kHz (LN mode)
+    Hz2000   = 0b0101,
+    /// 1 kHz (LN mode)
+    #[default]
+    Hz1000   = 0b0110,
+    /// 1.5625 Hz (LP or LN mode)
+    Hz500    = 0b1111,
     /// 200 Hz (LP or LN mode)
-    Hz200    = 0b1000,
+    Hz200    = 0b0111,
     /// 100 Hz (LP or LN mode)
-    Hz100    = 0b1001,
+    Hz100    = 0b1000,
     /// 50 Hz (LP or LN mode)
-    Hz50     = 0b1010,
+    Hz50     = 0b1001,
     /// 25 Hz (LP or LN mode)
-    Hz25     = 0b1011,
+    Hz25     = 0b1010,
     /// 12.5 Hz (LP or LN mode)
-    Hz12_5   = 0b1100,
+    Hz12_5   = 0b1011,
     /// 6.25 Hz (LP mode)
-    Hz6_25   = 0b1101,
+    Hz6_25   = 0b1100,
     /// 3.125 Hz (LP mode)
-    Hz3_125  = 0b1110,
-    /// 1.5625 Hz (LP mode
-    Hz1_5625 = 0b1111,
+    Hz3_125  = 0b1101,
+    /// 1.5625 Hz (LP mode)
+    Hz1_5625 = 0b1110,
 }
 
 impl AccelOdr {
@@ -229,9 +241,11 @@ impl AccelOdr {
         use AccelOdr::*;
 
         match self {
-            Hz1600 => 1600.0,
-            Hz800 => 800.0,
-            Hz400 => 400.0,
+            Hz8000 => 8000.0,
+            Hz4000 => 4000.0,
+            Hz2000 => 2000.0,
+            Hz1000 => 1000.0,
+            Hz500 => 500.0,
             Hz200 => 200.0,
             Hz100 => 100.0,
             Hz50 => 50.0,
@@ -255,12 +269,6 @@ impl Bitfield for AccelOdr {
     }
 }
 
-impl Default for AccelOdr {
-    fn default() -> Self {
-        Self::Hz800
-    }
-}
-
 impl TryFrom<u8> for AccelOdr {
     type Error = SensorError;
 
@@ -268,37 +276,36 @@ impl TryFrom<u8> for AccelOdr {
         use AccelOdr::*;
 
         match value {
-            0b0101 => Ok(Hz1600),
-            0b0110 => Ok(Hz800),
-            0b0111 => Ok(Hz400),
-            0b1000 => Ok(Hz200),
-            0b1001 => Ok(Hz100),
-            0b1010 => Ok(Hz50),
-            0b1011 => Ok(Hz25),
-            0b1100 => Ok(Hz12_5),
-            0b1101 => Ok(Hz6_25),
-            0b1110 => Ok(Hz3_125),
-            0b1111 => Ok(Hz1_5625),
+            0b0011 => Ok(Hz8000),
+            0b0100 => Ok(Hz4000),
+            0b0101 => Ok(Hz2000),
+            0b0110 => Ok(Hz1000),
+            0b1111 => Ok(Hz500),
+            0b0111 => Ok(Hz200),
+            0b1000 => Ok(Hz100),
+            0b1001 => Ok(Hz50),
+            0b1010 => Ok(Hz25),
+            0b1011 => Ok(Hz12_5),
+            0b1100 => Ok(Hz6_25),
+            0b1101 => Ok(Hz3_125),
+            0b1110 => Ok(Hz1_5625),
             _ => Err(SensorError::InvalidDiscriminant),
         }
     }
 }
 
 /// Acceleration Low Power Averaging
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub enum AccLpAvg {
-    X2  = 0b000,
-    X4  = 0b001,
-    X8  = 0b010,
-    X16 = 0b011,
-    X32 = 0b100,
-    X64 = 0b101,
+    #[default]
+    X1  = 1,
+    X16  = 6,
 }
 
 impl Bitfield for AccLpAvg {
-    const BITMASK: u8 = 0b0111_0000;
+    const BITMASK: u8 = 0b1111_0000;
     type Reg = Bank0;
-    const REGISTER: Self::Reg = Self::Reg::ACCEL_CONFIG1;
+    const REGISTER: Self::Reg = Self::Reg::GYRO_ACCEL_CONFIG0;
 
     fn bits(self) -> u8 {
         (self as u8) << 4
@@ -340,12 +347,12 @@ pub enum TempDlpfBw {
     Hz4      = 0b110,
 }
 impl Bitfield for TempDlpfBw {
-    const BITMASK: u8 = 0b0111_0000;
+    const BITMASK: u8 = 0b1110_0000;
     type Reg = Bank0;
-    const REGISTER: Self::Reg = Self::Reg::TEMP_CONFIG0;
+    const REGISTER: Self::Reg = Self::Reg::GYRO_CONFIG1;
 
     fn bits(self) -> u8 {
-        (self as u8) << 4
+        (self as u8) << 5
     }
 }
 
@@ -364,31 +371,40 @@ pub enum GyroLpFiltBw {
 impl Bitfield for GyroLpFiltBw {
     const BITMASK: u8 = 0b0000_0111;
     type Reg = Bank0;
-    const REGISTER: Self::Reg = Self::Reg::GYRO_CONFIG1;
+    const REGISTER: Self::Reg = Self::Reg::GYRO_ACCEL_CONFIG0;
 
     fn bits(self) -> u8 {
         self as u8
     }
 }
 /// Gyroscope ODR selection values
-#[derive(Clone, Copy, Debug, PartialEq)]
+///
+/// Note that this enum is sorted from greatest to least
+///  Hz, which is different to how these values are listed
+///  in the datasheet.
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub enum GyroOdr {
-    /// 1.6k Hz
-    Hz1600 = 0b0101,
-    /// 800 Hz
-    Hz800  = 0b0110,
-    /// 400 Hz
-    Hz400  = 0b0111,
+    /// 8 kHz
+    Hz8000 = 0b0011,
+    /// 4 kHz
+    Hz4000 = 0b0100,
+    /// 2 kHz
+    Hz2000 = 0b0101,
+    /// 1 kHz
+    #[default]
+    Hz1000 = 0b0110,
+    /// 500 Hz
+    Hz500  = 0b1111,
     /// 200 Hz
-    Hz200  = 0b1000,
+    Hz200  = 0b0111,
     /// 100 Hz
-    Hz100  = 0b1001,
+    Hz100  = 0b1000,
     /// 50 Hz
-    Hz50   = 0b1010,
+    Hz50   = 0b1001,
     /// 25 Hz
-    Hz25   = 0b1011,
+    Hz25   = 0b1010,
     /// 12.5 Hz
-    Hz12_5 = 0b1100,
+    Hz12_5 = 0b1011,
 }
 
 impl GyroOdr {
@@ -396,9 +412,11 @@ impl GyroOdr {
         use GyroOdr::*;
 
         match self {
-            Hz1600 => 1600.0,
-            Hz800 => 800.0,
-            Hz400 => 400.0,
+            Hz8000 => 8000.0,
+            Hz4000 => 4000.0,
+            Hz2000 => 2000.0,
+            Hz1000 => 1000.0,
+            Hz500 => 500.0,
             Hz200 => 200.0,
             Hz100 => 100.0,
             Hz50 => 50.0,
@@ -419,12 +437,6 @@ impl Bitfield for GyroOdr {
     }
 }
 
-impl Default for GyroOdr {
-    fn default() -> Self {
-        Self::Hz800
-    }
-}
-
 impl TryFrom<u8> for GyroOdr {
     type Error = SensorError;
 
@@ -432,49 +444,31 @@ impl TryFrom<u8> for GyroOdr {
         use GyroOdr::*;
 
         match value {
-            0b0101 => Ok(Hz1600),
-            0b0110 => Ok(Hz800),
-            0b0111 => Ok(Hz400),
-            0b1000 => Ok(Hz200),
-            0b1001 => Ok(Hz100),
-            0b1010 => Ok(Hz50),
-            0b1011 => Ok(Hz25),
-            0b1100 => Ok(Hz12_5),
+            0b0011 => Ok(Hz8000),
+            0b0100 => Ok(Hz4000),
+            0b0101 => Ok(Hz2000),
+            0b0110 => Ok(Hz1000),
+            0b1111 => Ok(Hz500),
+            0b0111 => Ok(Hz200),
+            0b1000 => Ok(Hz100),
+            0b1001 => Ok(Hz50),
+            0b1010 => Ok(Hz25),
+            0b1011 => Ok(Hz12_5),
             _ => Err(SensorError::InvalidDiscriminant),
         }
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum SoftReset {
-    Enabled   = 0b0,
-    _Disabled = 0b1,
-}
+pub(crate) struct SoftReset;
 
 impl Bitfield for SoftReset {
-    const BITMASK: u8 = 0b0001_0000;
+    const BITMASK: u8 = 0b0000_1000;
     type Reg = Bank0;
     const REGISTER: Self::Reg = Self::Reg::SIGNAL_PATH_RESET;
 
     fn bits(self) -> u8 {
-        (self as u8) << 4
-    }
-}
-
-#[allow(dead_code)]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum MClkReady {
-    Running    = 0b0,
-    NotRunning = 0b1,
-}
-
-impl Bitfield for MClkReady {
-    const BITMASK: u8 = 0b0000_1000;
-    type Reg = Bank0;
-    const REGISTER: Self::Reg = Self::Reg::MCLK_RDY;
-
-    fn bits(self) -> u8 {
-        (self as u8) << 3
+        1 << 3
     }
 }
 
@@ -486,12 +480,12 @@ pub(crate) enum SpiWireCount {
 }
 
 impl Bitfield for SpiWireCount {
-    const BITMASK: u8 = 0b0000_0100;
-    type Reg = Bank0;
-    const REGISTER: Self::Reg = Self::Reg::DEVICE_CONFIG;
+    const BITMASK: u8 = 0b0000_0010;
+    type Reg = Bank1;
+    const REGISTER: Self::Reg = Self::Reg::INTF_CONFIG4;
 
     fn bits(self) -> u8 {
-        (self as u8) << 2
+        (self as u8) << 1
     }
 }
 
@@ -512,136 +506,34 @@ impl Bitfield for SpiMode {
     }
 }
 
-/// Controls slew rate for output pin 14 when device is in I3CSM DDR protocol.
-/// While in I3CSM operation, the device automatically switches to use
-/// I3C_DDR_SLEW_RATE after receiving ENTHDR0 ccc command from the host.
-/// The device automatically switches back to I3C_SDR_SLEW_RATE after the
-/// host issues HDR_EXIT pattern.
-///
-/// This register field should not be programmed in I3C/DDR mode.
-#[allow(dead_code)]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum I3CDdrSlewRate {
-    /// Min 20ns; Typ 40ns; Max 60ns
-    M20T40M60 = 0b000,
-    /// Min 12ns; Typ 24ns; Max 36ns
-    M12T24M36 = 0b001,
-    /// Min 6ns; Typ 12ns; Max 19ns
-    M6T12M19  = 0b010,
-    /// Min 4ns; Typ 8ns; Max 14ns
-    M4T8M14   = 0b011,
-    /// Min 2ns; Typ 4ns; Max 8ns
-    M2T4M8    = 0b100,
-    /// Max 2ns
-    M2        = 0b101,
-}
-
-impl Bitfield for I3CDdrSlewRate {
-    const BITMASK: u8 = 0b0011_1000;
-    type Reg = Bank0;
-    const REGISTER: Self::Reg = Self::Reg::DRIVE_CONFIG1;
-
-    fn bits(self) -> u8 {
-        (self as u8) << 3
-    }
-}
-
-/// Controls slew rate for output pin 14 in I3CSM SDR protocol.
-/// After device reset, I2C_SLEW_RATE is used by default. If I3CSM feature is
-/// enabled, the device automatically switches to use I3C_SDR_SLEW_RATE
-/// after receiving 0x7E+W message (an I3CSM broadcast message).
-///
-/// This register field should not be programmed in I3C/DDR mode.
-#[allow(dead_code)]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum I3CSdrSlewRate {
-    /// Min 20ns; Typ 40ns; Max 60ns
-    M20T40M60 = 0b000,
-    /// Min 12ns; Typ 24ns; Max 36ns
-    M12T24M36 = 0b001,
-    /// Min 6ns; Typ 12ns; Max 19ns
-    M6T12M19  = 0b010,
-    /// Min 4ns; Typ 8ns; Max 14ns
-    M4T8M14   = 0b011,
-    /// Min 2ns; Typ 4ns; Max 8ns
-    M2T4M8    = 0b100,
-    /// Max 2ns
-    M2        = 0b101,
-}
-
-impl Bitfield for I3CSdrSlewRate {
-    const BITMASK: u8 = 0b0000_0111;
-    type Reg = Bank0;
-    const REGISTER: Self::Reg = Self::Reg::DRIVE_CONFIG1;
-
-    fn bits(self) -> u8 {
-        self as u8
-    }
-}
-
 /// Controls slew rate for output pin 14 in I2C mode.
 /// After device reset, the I2C_SLEW_RATE is used by default. If the 1st write
 /// operation from host is an SPI transaction, the device automatically switches
-/// to SPI_SLEW_RATE. If I3CSM feature is enabled, the device automatically
-/// switches to I3C_SDR_SLEW_RATE after receiving 0x7E+W message (an I3C
-/// broadcast message).
-///
-/// This register field should not be programmed in I3C/DDR mode.
+/// to SPI_SLEW_RATE.
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum I2CSlewRate {
-    /// Min 20ns; Typ 40ns; Max 60ns
-    M20T40M60 = 0b000,
-    /// Min 12ns; Typ 24ns; Max 36ns
-    M12T24M36 = 0b001,
-    /// Min 6ns; Typ 12ns; Max 19ns
-    M6T12M19  = 0b010,
-    /// Min 4ns; Typ 8ns; Max 14ns
-    M4T8M14   = 0b011,
-    /// Min 2ns; Typ 4ns; Max 8ns
-    M2T4M8    = 0b100,
+    /// Min 20ns; Max 60ns
+    M20M60 = 0b000,
+    /// Min 12ns; Max 36ns
+    M12M36 = 0b001,
+    /// Min 6ns; Max 18ns
+    M6M18  = 0b010,
+    /// Min 4ns; Max 12ns
+    M4M12   = 0b011,
+    /// Min 2ns; Max 6ns
+    M2M6    = 0b100,
     /// Max 2ns
-    M2        = 0b101,
+    M2      = 0b101,
 }
 
 impl Bitfield for I2CSlewRate {
     const BITMASK: u8 = 0b0011_1000;
     type Reg = Bank0;
-    const REGISTER: Self::Reg = Self::Reg::DRIVE_CONFIG2;
+    const REGISTER: Self::Reg = Self::Reg::DRIVE_CONFIG;
 
     fn bits(self) -> u8 {
         (self as u8) << 3
-    }
-}
-
-/// Configure drive strength for all output pins in all modes (SPI3, SPI4, I2C,
-/// I3CSM) excluding pin 14.
-///
-/// This register field should not be programmed in I3C/DDR mode.
-#[allow(dead_code)]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum AllSlewRate {
-    /// Min 20ns; Typ 40ns; Max 60ns
-    M20T40M60 = 0b000,
-    /// Min 12ns; Typ 24ns; Max 36ns
-    M12T24M36 = 0b001,
-    /// Min 6ns; Typ 12ns; Max 19ns
-    M6T12M19  = 0b010,
-    /// Min 4ns; Typ 8ns; Max 14ns
-    M4T8M14   = 0b011,
-    /// Min 2ns; Typ 4ns; Max 8ns
-    M2T4M8    = 0b100,
-    /// Max 2ns
-    M2        = 0b101,
-}
-
-impl Bitfield for AllSlewRate {
-    const BITMASK: u8 = 0b0000_0111;
-    type Reg = Bank0;
-    const REGISTER: Self::Reg = Self::Reg::DRIVE_CONFIG2;
-
-    fn bits(self) -> u8 {
-        self as u8
     }
 }
 
@@ -655,24 +547,24 @@ impl Bitfield for AllSlewRate {
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum SpiSlewRate {
-    /// Min 20ns; Typ 40ns; Max 60ns
-    M20T40M60 = 0b000,
-    /// Min 12ns; Typ 24ns; Max 36ns
-    M12T24M36 = 0b001,
-    /// Min 6ns; Typ 12ns; Max 19ns
-    M6T12M19  = 0b010,
-    /// Min 4ns; Typ 8ns; Max 14ns
-    M4T8M14   = 0b011,
-    /// Min 2ns; Typ 4ns; Max 8ns
-    M2T4M8    = 0b100,
+    /// Min 20ns; Max 60ns
+    M20M60 = 0b000,
+    /// Min 12ns; Max 36ns
+    M12M36 = 0b001,
+    /// Min 6ns; Max 18ns
+    M6M18  = 0b010,
+    /// Min 4ns; Max 12ns
+    M4M12  = 0b011,
+    /// Min 2ns; Max 6ns
+    M2M6   = 0b100,
     /// Max 2ns
-    M2        = 0b101,
+    M2     = 0b101,
 }
 
 impl Bitfield for SpiSlewRate {
     const BITMASK: u8 = 0b0000_0111;
     type Reg = Bank0;
-    const REGISTER: Self::Reg = Self::Reg::DRIVE_CONFIG2;
+    const REGISTER: Self::Reg = Self::Reg::DRIVE_CONFIG;
 
     fn bits(self) -> u8 {
         self as u8

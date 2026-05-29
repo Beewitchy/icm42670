@@ -312,7 +312,7 @@ where
             .await
             .map_err(Error::BusError)?;
         #[cfg(feature = "defmt")]
-        defmt::trace!("read {=[u8:x]}", buffer);
+        defmt::trace!("read {=[u8]:x}", buffer);
         Ok(buffer[0])
     }
 
@@ -328,7 +328,7 @@ where
             .map_err(Error::BusError)?;
 
         #[cfg(feature = "defmt")]
-        defmt::trace!("read {=[u8:x]}", bytes);
+        defmt::trace!("read {=[u8]:x}", bytes);
         let data = i16::from_be_bytes([bytes[0], bytes[1]]);
 
         Ok(data)
@@ -349,7 +349,7 @@ where
             .map_err(Error::BusError)?;
 
         #[cfg(feature = "defmt")]
-        defmt::trace!("read {=[u8:x]}", bytes);
+        defmt::trace!("read {=[u8]:x}", bytes);
 
         let word1 = i16::from_be_bytes([bytes[0], bytes[1]]);
         let word2 = i16::from_be_bytes([bytes[2], bytes[3]]);

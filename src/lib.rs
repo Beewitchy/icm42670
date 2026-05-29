@@ -375,6 +375,8 @@ where
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum Axis {
     X,
     Y,
@@ -382,7 +384,7 @@ pub enum Axis {
 }
 
 pub const trait Vector: Copy + [const] core::ops::IndexMut<Axis, Output = Self::Component> {
-    type Component;
+    type Component: Copy;
     fn x(&self) -> &Self::Component {
         self.index(Axis::X)
     }

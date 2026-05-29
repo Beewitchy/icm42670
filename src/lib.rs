@@ -61,20 +61,16 @@ where
     pub async fn new(i2c: I2C, address: Address) -> Result<Self, Error<E>> {
         let mut new = Self { i2c, address };
 
-        // Verify that the device has the correct ID before continuing. If the ID does
-        // not match either of the expected values then it is likely the wrong chip is
-        // connected.
         if !Self::DEVICE_IDS.contains(&new.device_id().await?) {
             return Err(Error::SensorError(SensorError::BadChip));
         }
 
-        // Make sure that any configuration has been restored to the default values when
-        // initializing the driver.
+        // The IMU uses `PowerMode::Sleep` by default
+        new.set_power_mode(PowerMode::Idle).await?;
+
         new.set_accel_range(AccelRange::default()).await?;
         new.set_gyro_range(GyroRange::default()).await?;
 
-        // The IMU uses `PowerMode::Sleep` by default, which disables both the accel and
-        // gyro, so we enable them both during driver initialization.
         new.set_power_mode(PowerMode::SixAxisLowNoise).await?;
 
         new.write_reg(&Bank0::SELF_TEST_CONFIG, 0x07).await?;

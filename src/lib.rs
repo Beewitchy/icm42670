@@ -382,7 +382,7 @@ where
             Err(Error::SensorError(SensorError::WriteToReadOnly))
         } else {
             #[cfg(feature = "defmt")]
-            defmt::trace!("update {} <- {}", BF::REGISTER.addr(), value.bits());
+            defmt::trace!("update {}...", BF::REGISTER.addr());
             let current = self.read_reg(&BF::REGISTER).await?;
             let value = (current & !BF::BITMASK) | (value.bits() & BF::BITMASK);
 

@@ -305,14 +305,14 @@ where
     /// Read a register at the provided address.
     async fn read_reg<R: Register>(&mut self, reg: &R) -> Result<u8, Error<E>> {
         #[cfg(feature = "defmt")]
-        defmt::trace!("read from {}", reg.addr());
+        defmt::trace!("read from {=u8:x}", reg.addr());
         let mut buffer = [0u8];
         self.i2c
             .write_read(self.address as u8, &[reg.addr()], &mut buffer)
             .await
             .map_err(Error::BusError)?;
         #[cfg(feature = "defmt")]
-        defmt::trace!("read {=[u8]}", buffer);
+        defmt::trace!("read {=[u8:x]}", buffer);
         Ok(buffer[0])
     }
 
@@ -320,7 +320,7 @@ where
     /// value.
     async fn read_reg_i16<R: Register>(&mut self, reg_hi: &R) -> Result<i16, Error<E>> {
         #[cfg(feature = "defmt")]
-        defmt::trace!("read from {}", reg_hi.addr());
+        defmt::trace!("read from {=u8:x}", reg_hi.addr());
         let mut bytes = [0u8; 2];
         self.i2c
             .write_read(self.address as u8, &[reg_hi.addr()], &mut bytes)
@@ -328,7 +328,7 @@ where
             .map_err(Error::BusError)?;
 
         #[cfg(feature = "defmt")]
-        defmt::trace!("read {=[u8]}", bytes);
+        defmt::trace!("read {=[u8:x]}", bytes);
         let data = i16::from_be_bytes([bytes[0], bytes[1]]);
 
         Ok(data)
@@ -341,7 +341,7 @@ where
         reg_hi: &R,
     ) -> Result<(i16, i16, i16), Error<E>> {
         #[cfg(feature = "defmt")]
-        defmt::trace!("read from {}", reg_hi.addr());
+        defmt::trace!("read from {=u8:x}", reg_hi.addr());
         let mut bytes = [0u8; 6];
         self.i2c
             .write_read(self.address as u8, &[reg_hi.addr()], &mut bytes)
@@ -349,7 +349,7 @@ where
             .map_err(Error::BusError)?;
 
         #[cfg(feature = "defmt")]
-        defmt::trace!("read {=[u8]}", bytes);
+        defmt::trace!("read {=[u8:x]}", bytes);
 
         let word1 = i16::from_be_bytes([bytes[0], bytes[1]]);
         let word2 = i16::from_be_bytes([bytes[2], bytes[3]]);
@@ -364,7 +364,7 @@ where
             Err(Error::SensorError(SensorError::WriteToReadOnly))
         } else {
             #[cfg(feature = "defmt")]
-            defmt::trace!("write to {} <- {=u8}", reg.addr(), value);
+            defmt::trace!("write to {=u8:x} <- {=u8:b}", reg.addr(), value);
             self.i2c
                 .write(self.address as u8, &[reg.addr(), value])
                 .await
@@ -382,7 +382,7 @@ where
             Err(Error::SensorError(SensorError::WriteToReadOnly))
         } else {
             #[cfg(feature = "defmt")]
-            defmt::trace!("update {}...", BF::REGISTER.addr());
+            defmt::trace!("update {=u8:x}...", BF::REGISTER.addr());
             let current = self.read_reg(&BF::REGISTER).await?;
             let value = (current & !BF::BITMASK) | (value.bits() & BF::BITMASK);
 

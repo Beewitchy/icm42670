@@ -2,6 +2,7 @@
 #![allow(unused)]
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub(crate) enum RegisterBank {
     Bank0,
     Bank1,
@@ -32,6 +33,7 @@ pub(crate) trait Register {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub(crate) enum Bank0 {
     DEVICE_CONFIG      = 0x11,
     DRIVE_CONFIG       = 0x13,
@@ -141,6 +143,7 @@ impl Register for Bank0 {
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub(crate) enum Bank1 {
     SENSOR_CONFIG0       = 0x03,
     GYRO_CONFIG_STATIC2  = 0x0B,
@@ -178,6 +181,7 @@ impl Register for Bank1 {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub(crate) enum Bank2 {
     ACCEL_CONFIG_STATIC2 = 0x03,
     ACCEL_CONFIG_STATIC3 = 0x04,
@@ -198,6 +202,7 @@ impl Register for Bank2 {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub(crate) enum Bank4 {
     APEX_CONFIG1    = 0x40,
     APEX_CONFIG2    = 0x41,

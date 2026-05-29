@@ -24,7 +24,7 @@ impl RegisterBank {
     }
 }
 
-pub(crate) trait Register {
+pub(crate) const trait Register {
     /// Get the address of the register
     fn addr(&self) -> u8;
 
@@ -96,7 +96,7 @@ pub(crate) enum Bank0 {
     BANK_SEL           = 0x76,
 }
 
-impl Register for Bank0 {
+impl const Register for Bank0 {
     fn addr(&self) -> u8 {
         *self as u8
     }
@@ -165,7 +165,7 @@ pub(crate) enum Bank1 {
     INTF_CONFIG5         = 0x7B,
 }
 
-impl Register for Bank1 {
+impl const Register for Bank1 {
     fn addr(&self) -> u8 {
         *self as u8
     }
@@ -191,7 +191,7 @@ pub(crate) enum Bank2 {
     ZA_ST_DATA = 0x3D,
 }
 
-impl Register for Bank2 {
+impl const Register for Bank2 {
     fn addr(&self) -> u8 {
         *self as u8
     }
@@ -229,7 +229,7 @@ pub(crate) enum Bank4 {
     OFFSET_USER8    = 0x7F,
 }
 
-impl Register for Bank4 {
+impl const Register for Bank4 {
     fn addr(&self) -> u8 {
         *self as u8
     }

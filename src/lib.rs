@@ -10,8 +10,6 @@
 #![no_std]
 #![feature(const_index, const_trait_impl)]
 
-use core::fmt::Debug;
-
 use embedded_hal_async::i2c::I2c;
 
 pub use crate::{
@@ -42,38 +40,38 @@ mod register;
 /// Device driver supporting ICM 42627 and 40627,
 ///  which seem to have the same spec.
 #[derive(Debug, Clone, Copy)]
-pub struct Icm42627<I2C> {
+pub struct Icm42627<I2C, Delay> {
     /// Underlying I²C peripheral
     i2c: I2C,
     /// I²C slave address to use
     address: Address,
+    /// Delay driver
+    delay: Delay,
 }
 
-impl<I2C, E> Icm42627<I2C>
+impl<I2C, E, Delay> Icm42627<I2C, Delay>
 where
     I2C: I2c<Error = E>,
-    E: Debug,
+    Delay: embedded_hal_async::delay::DelayNs,
 {
     /// WHO_AM_I values for 42627 and 40627
     pub const DEVICE_IDS: [u8; 2] = [0x20, 0x4E];
 
     /// Instantiate a new instance of the driver and initialize the device
-    pub async fn new(i2c: I2C, address: Address) -> Result<Self, Error<E>> {
-        let mut new = Self { i2c, address };
+    pub async fn new(i2c: I2C, address: Address, delay: Delay) -> Result<Self, Error<E>> {
+        let mut new = Self {
+            i2c,
+            address,
+            delay,
+        };
 
         if !Self::DEVICE_IDS.contains(&new.device_id().await?) {
             return Err(Error::SensorError(SensorError::BadChip));
         }
 
-        // The IMU uses `PowerMode::Sleep` by default
-        new.set_power_mode(PowerMode::Idle).await?;
-
-        new.set_accel_range(AccelRange::default()).await?;
-        new.set_gyro_range(GyroRange::default()).await?;
+        new.soft_reset().await?;
 
         new.set_power_mode(PowerMode::SixAxisLowNoise).await?;
-
-        new.write_reg(&Bank0::SELF_TEST_CONFIG, 0x07).await?;
 
         Ok(new)
     }
@@ -90,7 +88,9 @@ where
 
     /// Perform a software-reset on the device
     pub async fn soft_reset(&mut self) -> Result<(), Error<E>> {
-        self.update_reg(SoftReset).await
+        self.update_reg(SoftReset).await?;
+        self.delay.delay_ms(10).await;
+        Ok(())
     }
 
     /// Enable the given self test config bits
@@ -191,11 +191,7 @@ where
         let gyro_y = gyro_raw[Axis::Y] as f32 / gyro_scale;
         let gyro_z = gyro_raw[Axis::Z] as f32 / gyro_scale;
 
-        Ok((
-            [accel_x, accel_y, accel_z],
-            [gyro_x, gyro_y, gyro_z],
-            temp,
-        ))
+        Ok(([accel_x, accel_y, accel_z], [gyro_x, gyro_y, gyro_z], temp))
     }
 
     /// Sets the bandwidth of the temperature signal DLPF (Digital Low Pass
@@ -219,7 +215,10 @@ where
 
     /// Set the power mode of the IMU
     pub async fn set_power_mode(&mut self, mode: PowerMode) -> Result<(), Error<E>> {
-        self.update_reg(mode).await
+        self.write_reg(&PowerMode::REGISTER, mode.bits() & PowerMode::BITMASK)
+            .await?;
+        self.delay.delay_ms(100).await;
+        Ok(())
     }
 
     /// Return the currently configured accelerometer range
@@ -260,7 +259,10 @@ where
 
     /// Selects GYRO UI low pass filter bandwidth
     /// This field can be changed on the fly even if gyro sonsor is on
-    pub async fn set_gyro_lp_filter_bandwidth(&mut self, freq: GyroLpFiltBw) -> Result<(), Error<E>> {
+    pub async fn set_gyro_lp_filter_bandwidth(
+        &mut self,
+        freq: GyroLpFiltBw,
+    ) -> Result<(), Error<E>> {
         self.update_reg(freq).await
     }
 
@@ -308,7 +310,7 @@ where
             .await
             .map_err(Error::BusError)?;
         #[cfg(feature = "defmt")]
-        defmt::trace!("read {=[u8]:x}", buffer);
+        defmt::trace!("read from {=u8:x} -> {=[u8]:x}", reg.addr(), buffer);
         Ok(buffer[0])
     }
 
@@ -324,7 +326,7 @@ where
             .map_err(Error::BusError)?;
 
         #[cfg(feature = "defmt")]
-        defmt::trace!("read {=[u8]:x}", bytes);
+        defmt::trace!("read from {=u8:x} -> {=[u8]:x}", reg_hi.addr(), bytes);
         let data = i16::from_be_bytes([bytes[0], bytes[1]]);
 
         Ok(data)
@@ -337,7 +339,7 @@ where
         reg_hi: &R,
     ) -> Result<(i16, i16, i16), Error<E>> {
         #[cfg(feature = "defmt")]
-        defmt::trace!("read from {=u8:x}", reg_hi.addr());
+        defmt::trace!("read triplet from {=u8:x}...", reg_hi.addr());
         let mut bytes = [0u8; 6];
         self.i2c
             .write_read(self.address as u8, &[reg_hi.addr()], &mut bytes)
@@ -345,7 +347,7 @@ where
             .map_err(Error::BusError)?;
 
         #[cfg(feature = "defmt")]
-        defmt::trace!("read {=[u8]:x}", bytes);
+        defmt::trace!("read from {=u8:x} -> {=[u8]:x}", reg_hi.addr(), bytes);
 
         let word1 = i16::from_be_bytes([bytes[0], bytes[1]]);
         let word2 = i16::from_be_bytes([bytes[2], bytes[3]]);
@@ -355,14 +357,20 @@ where
     }
 
     /// Set a register at the provided address to a given value.
-   async fn write_reg<R: Register>(&mut self, reg: &R, value: u8) -> Result<(), Error<E>> {
+    async fn write_reg<R: Register>(&mut self, reg: &R, value: u8) -> Result<(), Error<E>> {
         if reg.read_only() {
             Err(Error::SensorError(SensorError::WriteToReadOnly))
         } else {
             #[cfg(feature = "defmt")]
             defmt::trace!("write to {=u8:x} <- {=u8:b}", reg.addr(), value);
             self.i2c
-                .write(self.address as u8, &[reg.addr(), value])
+                .transaction(
+                    self.address as u8,
+                    &mut [
+                        embedded_hal_async::i2c::Operation::Write(&[reg.addr()]),
+                        embedded_hal_async::i2c::Operation::Write(&[value]),
+                    ],
+                )
                 .await
                 .map_err(Error::BusError)
         }
@@ -380,6 +388,7 @@ where
             #[cfg(feature = "defmt")]
             defmt::trace!("update {=u8:x}...", BF::REGISTER.addr());
             let current = self.read_reg(&BF::REGISTER).await?;
+            self.delay.delay_ms(10).await;
             let value = (current & !BF::BITMASK) | (value.bits() & BF::BITMASK);
 
             self.write_reg(&BF::REGISTER, value).await
@@ -395,7 +404,9 @@ pub enum Axis {
     Z,
 }
 
-pub const trait Vector: Copy + [const] core::ops::IndexMut<Axis, Output = Self::Component> {
+pub const trait Vector:
+    Copy + [const] core::ops::IndexMut<Axis, Output = Self::Component>
+{
     type Component: Copy;
     fn x(&self) -> &Self::Component {
         self.index(Axis::X)
@@ -411,15 +422,15 @@ pub const trait Vector: Copy + [const] core::ops::IndexMut<Axis, Output = Self::
 pub type I16x3 = [i16; 3];
 pub type F32x3 = [f32; 3];
 
-impl const Vector for I16x3 {
+const impl Vector for I16x3 {
     type Component = i16;
 }
 
-impl const Vector for F32x3 {
+const impl Vector for F32x3 {
     type Component = f32;
 }
 
-impl<T> const core::ops::Index<Axis> for [T; 3] {
+const impl<T> core::ops::Index<Axis> for [T; 3] {
     type Output = T;
 
     fn index(&self, index: Axis) -> &Self::Output {
@@ -427,7 +438,7 @@ impl<T> const core::ops::Index<Axis> for [T; 3] {
     }
 }
 
-impl<T> const core::ops::IndexMut<Axis> for [T; 3] {
+const impl<T> core::ops::IndexMut<Axis> for [T; 3] {
     fn index_mut(&mut self, index: Axis) -> &mut Self::Output {
         &mut self[index as usize]
     }

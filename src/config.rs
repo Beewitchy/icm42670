@@ -87,22 +87,22 @@ impl TryFrom<u8> for AccelRange {
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum GyroRange {
     /// ±15.625 deg/sec
-    Deg15_625 = 7,
+    Deg15_625 = 0b111,
     /// ±31.25 deg/sec
-    Deg31_25  = 6,
+    Deg31_25  = 0b110,
     /// ±62.5 deg/sec
-    Deg62_5   = 5,
+    Deg62_5   = 0b101,
     /// ±125 deg/sec
-    Deg125    = 4,
+    Deg125    = 0b100,
     /// ±250 deg/sec
-    Deg250    = 3,
+    Deg250    = 0b011,
     /// ±500 deg/sec
-    Deg500    = 2,
+    Deg500    = 0b010,
     /// ±1000 deg/sec
-    Deg1000   = 1,
+    Deg1000   = 0b001,
     /// ±2000 deg/sec
     #[default]
-    Deg2000   = 0,
+    Deg2000   = 0b000,
 }
 
 impl GyroRange {
@@ -142,10 +142,14 @@ impl TryFrom<u8> for GyroRange {
         use GyroRange::*;
 
         match value {
-            0 => Ok(Deg2000),
-            1 => Ok(Deg1000),
-            2 => Ok(Deg500),
-            3 => Ok(Deg250),
+            0b000 => Ok(Deg2000),
+            0b001 => Ok(Deg1000),
+            0b010 => Ok(Deg500),
+            0b011 => Ok(Deg250),
+            0b100 => Ok(Deg125),
+            0b101 => Ok(Deg62_5),
+            0b110 => Ok(Deg31_25),
+            0b111 => Ok(Deg15_625),
             _ => Err(SensorError::InvalidDiscriminant),
         }
     }
@@ -221,7 +225,7 @@ pub enum AccelOdr {
     /// 1 kHz (LN mode)
     #[default]
     Hz1000   = 0b0110,
-    /// 1.5625 Hz (LP or LN mode)
+    /// 500 Hz (LP or LN mode)
     Hz500    = 0b1111,
     /// 200 Hz (LP or LN mode)
     Hz200    = 0b0111,
@@ -474,12 +478,60 @@ impl TryFrom<u8> for GyroOdr {
 pub(crate) struct SoftReset;
 
 impl Bitfield for SoftReset {
-    const BITMASK: u8 = 0b0000_1000;
+    const BITMASK: u8 = 0b0000_0001;
+    type Reg = Bank0;
+    const REGISTER: Self::Reg = Self::Reg::DEVICE_CONFIG;
+
+    fn bits(self) -> u8 {
+        1
+    }
+}
+
+#[derive(Default, Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum SignalPathReset {
+    FifoFlush = 0b0000_0010,
+    TimestampStrobe = 0b0000_0100,
+    AbortAndReset = 0b0000_1000,
+    ResetDmpMemory = 0b0010_0000,
+    DmpEnabled = 0b0100_0000,
+    #[default]
+    ResetAndFlushFifo = 0b0000_1000 | 0b0000_0010,
+}
+
+impl Bitfield for SignalPathReset {
+    const BITMASK: u8 = 0b0110_1110;
     type Reg = Bank0;
     const REGISTER: Self::Reg = Self::Reg::SIGNAL_PATH_RESET;
 
     fn bits(self) -> u8 {
-        1 << 3
+        self as u8
+    }
+}
+
+
+#[derive(Default, Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum SelfTest {
+    GyroX = 0b0000_0001,
+    GyroY = 0b0000_0010,
+    GyroZ = 0b0000_0100,
+    AccelX = 0b0000_1000,
+    AccelY = 0b0001_0000,
+    AccelZ = 0b0010_0000,
+    AccelSelfTestPower = 0b0100_0000,
+    All = 0b0111_1111,
+    #[default]
+    Off = 0b0000_0000,
+}
+
+impl Bitfield for SelfTest {
+    const BITMASK: u8 = 0b0111_1111;
+    type Reg = Bank0;
+    const REGISTER: Self::Reg = Self::Reg::SELF_TEST_CONFIG;
+
+    fn bits(self) -> u8 {
+        self as u8
     }
 }
 
@@ -510,12 +562,12 @@ pub(crate) enum SpiMode {
 }
 
 impl Bitfield for SpiMode {
-    const BITMASK: u8 = 0b0000_0001;
+    const BITMASK: u8 = 0b0001_0000;
     type Reg = Bank0;
     const REGISTER: Self::Reg = Self::Reg::DEVICE_CONFIG;
 
     fn bits(self) -> u8 {
-        self as u8
+        (self as u8) << 3
     }
 }
 

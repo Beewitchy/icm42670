@@ -23,6 +23,8 @@ pub use crate::{
         GyroOdr,
         GyroRange,
         PowerMode,
+        SelfTest,
+        SignalPathReset,
         TempDlpfBw,
     },
     error::Error,
@@ -89,15 +91,22 @@ where
     /// Perform a software-reset on the device
     pub async fn soft_reset(&mut self) -> Result<(), Error<E>> {
         self.update_reg(SoftReset).await?;
-        self.delay.delay_ms(10).await;
+        self.delay.delay_ms(100).await;
+        Ok(())
+    }
+
+    /// Reset various signal processing features
+    pub async fn reset_signal_path(&mut self, value: SignalPathReset) -> Result<(), Error<E>> {
+        self.update_reg(value).await?;
+        self.delay.delay_ms(100).await;
         Ok(())
     }
 
     /// Enable the given self test config bits
-    ///
-    /// TODO: needs an actual config API
-    pub async fn enable_self_test(&mut self, bits: u8) -> Result<(), Error<E>> {
-        self.write_reg(&Bank0::SELF_TEST_CONFIG, bits).await
+    pub async fn enable_self_test(&mut self, value: SelfTest) -> Result<(), Error<E>> {
+        self.update_reg(value).await?;
+        self.delay.delay_ms(100).await;
+        Ok(())
     }
 
     /// Return the normalized gyro data for each of the three axes
@@ -183,6 +192,7 @@ where
         let accel_scale = AccelRange::try_from(conf_bytes[1] >> 5)?.scale_factor();
 
         let temp = (temp_raw as f32 / 132.48) + 25.0;
+
         let accel_x = acc_raw[Axis::X] as f32 / accel_scale;
         let accel_y = acc_raw[Axis::Y] as f32 / accel_scale;
         let accel_z = acc_raw[Axis::Z] as f32 / accel_scale;

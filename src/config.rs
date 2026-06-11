@@ -112,14 +112,14 @@ impl GyroRange {
 
         // Values taken from `Table 1. Gyroscope Specifications` of the data sheet
         match self {
-            Deg15_625 => 15.625,
-            Deg31_25 => 31.25,
-            Deg62_5 => 62.5,
-            Deg125 => 125.0,
-            Deg250 => 250.0,
-            Deg500 => 500.0,
-            Deg1000 => 1000.0,
-            Deg2000 => 2000.0,
+            Deg15_625 => 2097.2,
+            Deg31_25 => 1048.6,
+            Deg62_5 => 524.3,
+            Deg125 => 262.0,
+            Deg250 => 131.0,
+            Deg500 => 65.5,
+            Deg1000 => 32.8,
+            Deg2000 => 16.4,
         }
     }
 }

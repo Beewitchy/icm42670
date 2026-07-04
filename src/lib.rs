@@ -373,14 +373,9 @@ where
         } else {
             #[cfg(feature = "defmt")]
             defmt::trace!("write to {=u8:x} <- {=u8:b}", reg.addr(), value);
+            let buf = [reg.addr(), value];
             self.i2c
-                .transaction(
-                    self.address as u8,
-                    &mut [
-                        embedded_hal_async::i2c::Operation::Write(&[reg.addr()]),
-                        embedded_hal_async::i2c::Operation::Write(&[value]),
-                    ],
-                )
+                .write(self.address as u8, &buf[..])
                 .await
                 .map_err(Error::BusError)
         }

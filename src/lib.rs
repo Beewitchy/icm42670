@@ -393,7 +393,7 @@ where
             #[cfg(feature = "defmt")]
             defmt::trace!("update {=u8:x}...", BF::REGISTER.addr());
             let current = self.read_reg(&BF::REGISTER).await?;
-            self.delay.delay_ms(10).await;
+            self.delay.delay_ms(50).await;
             let value = (current & !BF::BITMASK) | (value.bits() & BF::BITMASK);
 
             self.write_reg(&BF::REGISTER, value).await
